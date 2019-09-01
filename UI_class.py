@@ -37,7 +37,7 @@ class Card:
 # only exists for the __str__ function
 class Hand:
 
-    def __init__(self, hand, deck):
+    def __init__(self, hand, deck=None):
         if isinstance(hand[0], Card):
             self.hand = hand
             return
@@ -65,8 +65,14 @@ class Hand:
     def __len__(self):
         return len(self.hand)
 
+    def __add__(self, other):
+        return Hand(self.hand + other.hand)
+
     def remove(self, c):
         self.hand.remove(c)
+
+    def sort(self):
+        self.hand.sort(key=lambda c: c.rank)
 
 
 class Deck:

@@ -53,8 +53,10 @@ class Control:
         if self.player_num == 0:
             self.start()
         elif self.player_num == 3 and self.state == 1:
+            self.play_call()
+        elif self.player_num == 3 and self.state == 2:
             self.play3()
-        elif self.state == 2:
+        elif self.state == 3:
             self.results()
 
     def start_init(self):
@@ -90,11 +92,10 @@ class Control:
         pygame.display.flip()
 
     def play_init3(self):
-        self.poker = threePlayerPoker.Poker3(['3','3','4','4','5','6','7','8','9','10','J','Q','K','A','2','SJ','BJ'],
-                                ['3','4','5','5','6','6','7','7','8','8','9','10','J','Q','K','A','2'],
-                                ['3','4','5','6','7','8','9','9','10','10','J','J','Q','Q','K','A','2'])
+        self.poker = threePlayerPoker.Poker3(gs)
 
         # create the new variables
+        self.pubcardLoc = {}
         self.player0cardLoc = {}
         self.player1cardLoc = {}
         self.player2cardLoc = {}
@@ -125,6 +126,88 @@ class Control:
         self.passbuttonRect = pygame.Rect(self.passbuttonLoc, self.buttonSize)
         self.passbuttonRectOutline = pygame.Rect(self.passbuttonLoc, self.buttonSize)
 
+        x = 10
+        # setup the text button used for call lord
+        self.giveupButton = self.font2.render(" GiveUp ", 1, BLACK)
+        self.giveupbuttonSize = self.font2.size(" GiveUp ")
+        self.giveupbuttonLoc = (x, self.player0cardLoc[0][1] - 50)
+        self.giveupbuttonRect = pygame.Rect(self.giveupbuttonLoc, self.giveupbuttonSize)
+        self.giveupbuttonRectOutline = pygame.Rect(self.giveupbuttonLoc, self.giveupbuttonSize)
+
+        self.callButton = self.font2.render(" Call ", 1, BLACK)
+        self.callbuttonSize = self.font2.size(" Call ")
+        self.callbuttonLoc = (x + self.giveupbuttonSize[0] + 20, self.player0cardLoc[0][1] - 50)
+        self.callbuttonRect = pygame.Rect(self.callbuttonLoc, self.callbuttonSize)
+        self.callbuttonRectOutline = pygame.Rect(self.callbuttonLoc, self.callbuttonSize)
+
+        self.fightButton = self.font2.render(" Fight ", 1, BLACK)
+        self.fightbuttonSize = self.font2.size(" Fight ")
+        self.fightbuttonLoc = (x + self.giveupbuttonSize[0] + 20 + self.callbuttonSize[0] + 20, self.player0cardLoc[0][1] - 50)
+        self.fightbuttonRect = pygame.Rect(self.fightbuttonLoc, self.fightbuttonSize)
+        self.fightbuttonRectOutline = pygame.Rect(self.fightbuttonLoc, self.fightbuttonSize)
+
+    def play_call(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            # when the user clicks on a card, change its color to signify a selection has occurred
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # check if clicked the giveupButton
+                if self.giveupbuttonRect.collidepoint(event.pos):
+                    if self.poker.act_call(0):
+                        break
+
+                # check if clicked the callButton
+                if self.callbuttonRect.collidepoint(event.pos):
+                    if self.poker.act_call(1):
+                        break
+
+                # check if clicked the fightButton
+                if self.fightbuttonRect.collidepoint(event.pos):
+                    if self.poker.act_call(2):
+                        break
+
+        # display background
+        SCREEN.blit(self.background, (-320, -100))
+
+        # update game state
+        self.update_3pgame_state()
+        # display the Lord's hand
+        self.display_cards(self.poker.player0_hand, self.player0cardLoc)
+        # display the Farmer's hand
+        self.display_cards(self.poker.player1_hand, self.player1cardLoc)
+        self.display_cards(self.poker.player2_hand, self.player2cardLoc)
+        # display the other player's action
+        self.display_call(self.poker.player1_move, (self.player1cardLoc[0][0],
+                         self.player1cardLoc[0][1] + int(self.scale * self.cardSize[1]) + 10))
+        self.display_call(self.poker.player2_move, (self.player2cardLoc[0][0],
+                         self.player2cardLoc[0][1] + int(self.scale * self.cardSize[1]) + 10))
+
+        # display the text
+        pygame.draw.rect(SCREEN, RED, self.giveupbuttonRect)
+        pygame.draw.rect(SCREEN, BLACK, self.giveupbuttonRectOutline, 2)
+        SCREEN.blit(self.giveupButton, self.giveupbuttonLoc)
+
+        pygame.draw.rect(SCREEN, RED, self.callbuttonRect)
+        pygame.draw.rect(SCREEN, BLACK, self.callbuttonRectOutline, 2)
+        SCREEN.blit(self.callButton, self.callbuttonLoc)
+
+        pygame.draw.rect(SCREEN, RED, self.fightbuttonRect)
+        pygame.draw.rect(SCREEN, BLACK, self.fightbuttonRectOutline, 2)
+        SCREEN.blit(self.fightButton, self.fightbuttonLoc)
+
+        if self.poker.lord_pos is not None:
+            #display public cards
+            self.display_cards(self.poker.pub_cards, self.pubcardLoc)
+            self.state += 1
+            self.poker.player0_move.clear()
+            self.poker.player1_move.clear()
+            self.poker.player2_move.clear()
+
+        pygame.display.flip()
+
     def play3(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -135,49 +218,36 @@ class Control:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for index in range(len(self.player0cardRects)):
                     if self.player0cardRects[index].collidepoint(event.pos):
-                        self.poker.lord_hand[index].upward = not self.poker.lord_hand[index].upward
+                        self.poker.player0_hand[index].upward = not self.poker.player0_hand[index].upward
                         break
 
                 # check if clicked the playButton
                 if self.playbuttonRect.collidepoint(event.pos):
-                    self.poker.get_lord_move()
-                    if self.poker.check_valid_move():
-                        self.poker.get_farmers_move()
-                        self.poker.update_farmers_hand()
-                        self.poker.reset_lord_move()
+                    if self.poker.act():
                         break
-                    else:
-                        self.poker.reset_lord_move()
 
                 # check if clicked the passButton
                 if self.passbuttonRect.collidepoint(event.pos):
-                    self.poker.reset_lord_move()
-                    if self.poker.check_valid_move():
-                        self.poker.get_farmers_move()
-                        self.poker.update_farmers_hand()
+                    if self.poker.act([]):
                         break
-                    else:
-                        self.poker.reset_lord_move()
 
-        if self.poker.check_win():
-            self.state += 1
-            self.results_init()
-            return
         # display background
         SCREEN.blit(self.background, (-320, -100))
 
         # update game state
         self.update_3pgame_state()
         # display the Lord's hand
-        self.display_cards(self.poker.lord_hand, self.player0cardLoc)
+        self.display_cards(self.poker.player0_hand, self.player0cardLoc)
         # display the Farmer's hand
-        self.display_cards(self.poker.farmerD_hand, self.player1cardLoc)
-        self.display_cards(self.poker.farmerU_hand, self.player2cardLoc)
+        self.display_cards(self.poker.player1_hand, self.player1cardLoc)
+        self.display_cards(self.poker.player2_hand, self.player2cardLoc)
         # display the Lord's move
-        self.display_cards(self.poker.lord_move, self.player0MoveLoc)
+        self.display_cards(self.poker.player0_move, self.player0MoveLoc)
         # display the Farmer's move
-        self.display_cards(self.poker.farmerD_move, self.player1MoveLoc)
-        self.display_cards(self.poker.farmerU_move, self.player2MoveLoc)
+        self.display_cards(self.poker.player1_move, self.player1MoveLoc)
+        self.display_cards(self.poker.player2_move, self.player2MoveLoc)
+        # display public cards
+        self.display_cards(self.poker.pub_cards, self.pubcardLoc)
 
         # display the text
         pygame.draw.rect(SCREEN, RED, self.playbuttonRect)
@@ -189,9 +259,14 @@ class Control:
 
         pygame.display.flip()
 
+        if self.poker.check_win():
+            self.state += 1
+            self.results_init()
+            return
+
     def results_init(self):
-        if len(self.poker.lord_hand) == 0:
-            text = "NB"
+        if len(self.poker.player0_hand) == 0:
+            text = "You Win"
         else:
             text = "You Lose"
         font = pygame.font.Font('font/IndianPoker.ttf', 150)
@@ -231,10 +306,19 @@ class Control:
 
         pygame.display.flip()
 
-    def display_cards(self, hand, locs, god_view=False):
+    def display_call(self, call_act, locs):
+        if len(call_act) == 0:
+            return
+        if call_act[0] == 0:
+            SCREEN.blit(self.giveupButton, locs)
+        elif call_act[0] == 1:
+            SCREEN.blit(self.callButton, locs)
+        else:
+            SCREEN.blit(self.fightButton, locs)
+
+    def display_cards(self, hand, locs):
         for index in range(len(hand)):
-            if god_view:
-                SCREEN.blit(self.images[str(hand[index])], locs[index])
+            SCREEN.blit(self.images[str(hand[index])], locs[index])
             if not hand[index].upward:
                 SCREEN.blit(self.cardBack, locs[index])
 
@@ -248,6 +332,7 @@ class Control:
                 x += int(self.scale * self.cardSize[0]*0.7)
 
     def update_3pgame_state(self):
+        self.pubcardLoc.clear()
         self.player0cardLoc.clear()
         self.player1cardLoc.clear()
         self.player2cardLoc.clear()
@@ -255,24 +340,31 @@ class Control:
         self.player1MoveLoc.clear()
         self.player2MoveLoc.clear()
         self.player0cardRects.clear()
+
         # setup the locations for each card in each player's hand
-        self._card_loc3_(self.player0cardLoc, len(self.poker.lord_hand), 2 * int(self.scale * self.cardSize[0]),
+        self._card_loc3_(self.player0cardLoc, len(self.poker.player0_hand), 2 * int(self.scale * self.cardSize[0]),
                          HEIGHT - int(self.scale * self.cardSize[1]))
-        self._card_loc3_(self.player1cardLoc, len(self.poker.farmerD_hand), WIDTH / 2, self.edge_width, True)
-        self._card_loc3_(self.player2cardLoc, len(self.poker.farmerU_hand), 0, HEIGHT / 5 * 2 - self.edge_width, True)
+        self._card_loc3_(self.player1cardLoc, len(self.poker.player1_hand), WIDTH / 2, self.edge_width, True)
+        self._card_loc3_(self.player2cardLoc, len(self.poker.player2_hand), 0, HEIGHT / 5 * 2 - self.edge_width, True)
         # setup the locations for moves of each player
-        self._card_loc3_(self.player0MoveLoc, len(self.poker.lord_move), 2 * int(self.scale * self.cardSize[0]),
+        self._card_loc3_(self.player0MoveLoc, len(self.poker.player0_move), 2 * int(self.scale * self.cardSize[0]),
                          self.player0cardLoc[0][1] - int(self.scale * self.cardSize[1]) - 10)
-        self._card_loc3_(self.player1MoveLoc, len(self.poker.farmerD_move), self.player1cardLoc[0][0],
+        self._card_loc3_(self.player1MoveLoc, len(self.poker.player1_move), self.player1cardLoc[0][0],
                          self.player1cardLoc[0][1] + int(self.scale * self.cardSize[1]) + 10)
-        self._card_loc3_(self.player2MoveLoc, len(self.poker.farmerU_move), self.player2cardLoc[0][0],
+        self._card_loc3_(self.player2MoveLoc, len(self.poker.player2_move), self.player2cardLoc[0][0],
                          self.player2cardLoc[0][1] + int(self.scale * self.cardSize[1]) + 10)
+        # setup the locations for public cards
+        self._card_loc3_(self.pubcardLoc, len(self.poker.pub_cards), 1100, 350)
         # setup lord cards' rect to detect mouse click
-        for index in range(len(self.poker.lord_hand)):
+        for index in range(len(self.poker.player0_hand)):
             self.player0cardRects.append(pygame.Rect(self.player0cardLoc[index], (int(self.scale * self.cardSize[0]*0.7),
                                                                                   int(self.scale * self.cardSize[1]))))
 
 #############################################################
+gs = threePlayerPoker.GameState([3,3,4,4,5,6,7,8,9,10,11,12,13,14,17,20,30],
+                                [3,4,5,5,6,6,7,7,8,8,9,10,11,12,13,14,17],
+                                [3,4,5,6,7,8,9,9,10,10,11,11,12,12,13,14,17],
+                                [13,14,17], [], [], [], 0)
 if __name__ == "__main__":
     os.environ['SDL_VIDEO_CENTERED'] = '1'  # center screen
     pygame.init()

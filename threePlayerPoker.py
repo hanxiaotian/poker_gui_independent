@@ -1,79 +1,157 @@
+from copy import deepcopy
 from UI_class import *
 
 class Poker3:
 
-    def __init__(self, lord_cards, farmerD_cards, farmerU_cards):
-        lord_cards.sort(key=lambda x: CARDS2VALUES[x])
-        farmerD_cards.sort(key=lambda x: CARDS2VALUES[x])
-        farmerU_cards.sort(key=lambda x: CARDS2VALUES[x])
+    def __init__(self, game_state):
+        game_state.player0_cards.sort()
+        game_state.player1_cards.sort()
+        game_state.player2_cards.sort()
         self.deck = Deck()
-        self.lord_hand = Hand(lord_cards, self.deck)
-        self.farmerD_hand = Hand(farmerD_cards, self.deck)
-        self.farmerU_hand = Hand(farmerU_cards, self.deck)
-        self.lord_move = []
-        self.farmerD_move = []
-        self.farmerU_move = []
+        self.player0_hand = Hand([VALUES2CARDS[c] for c in game_state.player0_cards], self.deck)
+        self.player1_hand = Hand([VALUES2CARDS[c] for c in game_state.player1_cards], self.deck)
+        for card in self.player1_hand:
+            card.upward = False
+        self.player2_hand = Hand([VALUES2CARDS[c] for c in game_state.player2_cards],  self.deck)
+        for card in self.player2_hand:
+            card.upward = False
+        self.pub_cards = Hand([VALUES2CARDS[c] for c in game_state.pub_cards],  self.deck)
 
-    def check_valid_move(self):
-        lord_m = [card.rank for card in self.lord_move]
-        lord_m_type = get_move_type(lord_m)
+        self.player0_move = []
+        self.player1_move = []
+        self.player2_move = []
+        self.lord_pos = game_state.lord_pos
 
-        if lord_m_type['type'] == TYPE_99_WRONG:
-            return False
+    def val_action2card_action(self, val_act, hand):
+        res = []
+        j = 0
+        for i in range(len(hand)):
+            if j >= len(val_act):
+                break
+            if hand[i].rank == val_act[j]:
+                res.append(hand[i])
+                j += 1
+                continue
+        return res
 
-        farmD_m = [card.rank for card in self.farmerD_move]
-        farmD_m_type = get_move_type(farmD_m)
-        farmU_m = [card.rank for card in self.farmerU_move]
-        farmU_m_type = get_move_type(farmU_m)
+    def update_player_hand(self, move, hand):
+        for c in move:
+            hand.remove(c)
 
-        last_move_type = farmU_m_type
-        if farmU_m_type['type'] == TYPE_0_PASS:
-            last_move_type = farmD_m_type
-
-        if last_move_type['type'] == TYPE_0_PASS:
-            if lord_m_type['type'] != TYPE_0_PASS:
-                return True
-            else:
-                return False
-        if lord_m_type['type'] == TYPE_0_PASS and last_move_type['type'] != TYPE_0_PASS:
-            return True
-        if lord_m_type['type'] == TYPE_5_KING_BOMB:
-            return True
-        if lord_m_type['type'] == TYPE_4_BOMB and last_move_type['type'] != TYPE_4_BOMB and last_move_type['type'] != TYPE_5_KING_BOMB:
-            return True
-        if lord_m_type['type'] == last_move_type['type'] and lord_m_type['rank'] > last_move_type['rank']:
-            if 'serial_len' in lord_m_type:
-                if lord_m_type['serial_len'] == last_move_type['serial_len']:
-                    return True
-                else:
-                    return False
-            else:
-                return True
-        return False
-
-    def update_lord_hand(self):
-        for c in self.lord_move:
-            self.lord_hand.remove(c)
-
-    def update_farmers_hand(self):
-        for c in self.farmerD_move:
-            self.farmerD_hand.remove(c)
-        for c in self.farmerU_move:
-            self.farmerU_hand.remove(c)
-
-    def get_lord_move(self):
-        self.lord_move.clear()
-        for c in self.lord_hand:
-            if c.selected:
-                self.lord_move.append(c)
-
-    def get_farmers_move(self):
-        pass
-
-    def reset_lord_move(self):
-        self.lord_move.clear()
+    def get_player0_move(self):
+        temp_move = []
+        for c in self.player0_hand:
+            if not c.upward:
+                temp_move.append(c)
+        return temp_move
 
     def check_win(self):
-        if len(self.lord_hand) == 0 or len(self.farmerD_hand) == 0 or len(self.farmerU_hand) == 0:
+        if len(self.player0_hand) == 0 or len(self.player1_hand) == 0 or len(self.player2_hand) == 0:
             return True
         return False
+
+    def dealpub(self):
+        if self.lord_pos == 0:
+            self.player0_hand += deepcopy(self.pub_cards)
+            self.player0_hand.sort()
+        elif self.lord_pos == 1:
+            self.player1_hand += deepcopy(self.pub_cards)
+            self.player1_hand.sort()
+            for card in self.player1_hand:
+                card.upward = False
+        elif self.lord_pos == 2:
+            self.player2_hand += deepcopy(self.pub_cards)
+            self.player2_hand.sort()
+            for card in self.player2_hand:
+                card.upward = False
+
+
+    def act_call(self, act):
+        if not send_action2env([act]):
+            return False
+        self.player0_move = [act]
+        cur_game_state = get_game_state()
+        self.lord_pos = cur_game_state.lord_pos
+        if self.lord_pos is not None:
+            self.dealpub()
+            return True
+
+        nxt_game_state = get_game_state(True)
+        player1_action = nxt_game_state.player1_actions[-1]
+        self.player1_move = player1_action
+        self.lord_pos = nxt_game_state.lord_pos
+        if self.lord_pos is not None:
+            self.dealpub()
+            return True
+
+        nxt_game_state = get_game_state()
+        player2_action = nxt_game_state.player2_actions[-1]
+        self.player2_move = player2_action
+        self.lord_pos = nxt_game_state.lord_pos
+        if self.lord_pos is not None:
+            self.dealpub()
+            return True
+
+        return True
+
+    def act(self, s=None):
+        player0_action = self.get_player0_move()
+        if s is not None:
+            player0_action = s
+        if not send_action2env([c.rank for c in player0_action]):
+            return False
+        self.player0_move = player0_action
+        for c in self.player0_move:
+            c.upward = True
+        self.update_player_hand(self.player0_move, self.player0_hand)
+
+        nxt_game_state = get_game_state(True)
+        player1_action = nxt_game_state.player1_actions[-1]
+        self.player1_move = self.val_action2card_action(player1_action, self.player1_hand)
+        for c in self.player1_move:
+            c.upward = True
+        self.update_player_hand(self.player1_move, self.player1_hand)
+
+        nxt_game_state = get_game_state()
+        player2_action = nxt_game_state.player2_actions[-1]
+        self.player2_move = self.val_action2card_action(player2_action, self.player2_hand)
+        for c in self.player2_move:
+            c.upward = True
+        self.update_player_hand(self.player2_move, self.player2_hand)
+
+        return True
+
+
+class GameState(object):
+    def __init__(self, player0_cards, player1_cards, player2_cards, pub_cards, player0_actions, player1_actions,
+                 player2_actions, cur_player, lord_pos=None, is_finished=False, winner=None):
+        self.player0_cards = player0_cards
+        self.player1_cards = player1_cards
+        self.player2_cards = player2_cards
+        self.pub_cards = pub_cards
+        self.player0_actions = player0_actions
+        self.player1_actions = player1_actions
+        self.player2_actions = player2_actions
+        self.cur_player = cur_player
+        self.lord_pos = lord_pos
+        self.is_finished = is_finished
+        self.winner = winner
+
+
+def get_game_state(game_proceed=False):
+    # TODO get game state from env
+    #  if game_proceed is true, after get game state, env proceed one step further
+
+    gs = GameState([3, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 30],
+                    [3, 4, 5, 6, 6, 7, 7, 8, 8, 9, 10, 11, 12, 13, 14, 17],
+                    [3, 4, 5, 6, 7, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 14, 17],
+                    [13, 14, 17], [[0]], [[0]], [[1]], 0, 1)
+    return gs
+    pass
+
+def send_action2env(action):
+    # TODO send human player(player 0) action to env
+    #  if valid, return true and env proceed to next step
+    #  else return false and env remain the same
+    return True
+    pass
